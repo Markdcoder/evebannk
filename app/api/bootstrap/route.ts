@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
+// (Optional sanity check: GET returns 405 so you know the route exists)
 export async function GET() {
-  // For sanity checks in the browser (GET is not allowed)
   return NextResponse.json({ error: "Method Not Allowed" }, { status: 405 });
 }
