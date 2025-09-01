@@ -14,7 +14,7 @@ export default function HomePage() {
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [me, setMe] = useState<any>(null);
-  const [error, setError] = useState<string| null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -24,7 +24,7 @@ export default function HomePage() {
     const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => {
       setSession(s);
     });
-    return () => { sub.subscription.unsubscribe(); }
+    return () => { sub.subscription.unsubscribe(); };
   }, []);
 
   useEffect(() => {
@@ -35,13 +35,20 @@ export default function HomePage() {
         await fetch("/api/bootstrap", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ uid: user.id, email: user.email, name: user.user_metadata?.name || null })
+          body: JSON.stringify({
+            uid: user.id,
+            email: user.email,
+            name: user.user_metadata?.name || null
+          })
         });
-        const r = await fetch("/api/me", { headers: { Authorization: `Bearer ${session.access_token}` }});
+
+        const r = await fetch("/api/me", {
+          headers: { Authorization: `Bearer ${session.access_token}` }
+        });
         const j = await r.json();
         if (!r.ok) throw new Error(j.error || "Failed to load profile");
         setMe(j);
-      } catch (e:any) {
+      } catch (e: any) {
         setError(e.message);
       }
     };
@@ -81,9 +88,9 @@ export default function HomePage() {
             <h3>Virtual Accounts</h3>
             {me.virtual_accounts?.length ? (
               <ul>
-                {me.virtual_accounts.map((v:any) => (
+                {me.virtual_accounts.map((v: any) => (
                   <li key={v.id}>
-                    <b>{v.bank_name}</b> — <code>{v.account_number}</code> ({v.currency})
+                    <b>{v.bank_name}</b> - <code>{v.account_number}</code> ({v.currency})
                   </li>
                 ))}
               </ul>
@@ -94,7 +101,7 @@ export default function HomePage() {
             <h3>Balances</h3>
             {me.balances?.length ? (
               <ul>
-                {me.balances.map((b:any) => (
+                {me.balances.map((b: any) => (
                   <li key={b.currency}><b>{b.currency}:</b> {b.amount}</li>
                 ))}
               </ul>
@@ -103,10 +110,10 @@ export default function HomePage() {
 
           <section style={{ padding: 12, border: "1px solid #eee", borderRadius: 12 }}>
             <h3>Admin</h3>
-            <p>Open <a href="/admin" target="_blank">/admin</a> to approve KYC & create a Virtual Account for a user.</p>
+            <p>Open <a href="/admin" target="_blank">/admin</a> to approve KYC and create a Virtual Account for a user.</p>
           </section>
         </div>
-      ) : <p>Loading dashboard…</p>}
+      ) : <p>Loading dashboard...</p>}
     </div>
   );
 }
