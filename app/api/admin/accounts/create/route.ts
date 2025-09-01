@@ -1,63 +1,72 @@
-"use client";
+import { NextRequest, NextResponse } from "next/server";
+import { supabaseAdmin } from "@/lib/supabase";
 
-import { useState } from "react";
+function isAdmin(req: NextRequest): boolean {
+  const header = req.headers.get("x-admin-key");
+  return !!header && header === process.env.ADMIN_SECRET;
+}
 
-export default function AdminPage() {
-  const [uid, setUid] = useState("");
-  const [email, setEmail] = useState("");     // optional, fallback to sandbox@example.com
-  const [bvn, setBvn] = useState("");         // required if permanent
-  const [isPermanent, setIsPermanent] = useState(true); // choose permanent or temporary
-  const [msg, setMsg] = useState<string | null>(null);
-  const [err, setErr] = useState<string | null>(null);
+export async function POST(req: NextRequest) {
+  if (!isAdmin(req)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
-  const createVA = async () => {
-    setMsg(null); setErr(null);
-    try {
-      const r = await fetch("/api/admin/accounts/create", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-admin-key": process.env.NEXT_PUBLIC_ADMIN_HEADER || ""
-        },
-        body: JSON.stringify({
-          uid,
-          email: email || undefined,
-          bvn: isPermanent ? bvn : undefined,
-          isPermanent
-        })
-      });
-      const j = await r.json();
-      if (!r.ok) throw new Error(j.error || "Failed");
-      setMsg(`Created: ${j.bank_name} ${j.account_number} (permanent: ${j.is_permanent ? "yes" : "no"})`);
-    } catch (e:any) {
-      setErr(e.message);
+  try {
+    const { uid, bvn, email, isPermanent } = await req.json();
+    if (!uid) {
+      return NextResponse.json({ error: "uid required" }, { status: 400 });
     }
-  };
 
-  return (
-    <div>
-      <h1>Admin — Create Virtual Account</h1>
-      <p style={{marginBottom:12}}>
-        Paste the user's <b>UID</b>. For <b>permanent</b> accounts you must provide a valid BVN (sandbox test BVN or real BVN in production).
-      </p>
-      <div style={{ display: "grid", gap: 8, maxWidth: 640 }}>
-        <input placeholder="User UID" value={uid} onChange={e => setUid(e.target.value)} style={{ padding: 8 }} />
-        <input placeholder="User Email (optional)" value={email} onChange={e => setEmail(e.target.value)} style={{ padding: 8 }} />
+    // Mark user as KYC approved
+    const u = await supabaseAdmin
+      .from("app_user")
+      .update({ kyc_status: "approved" })
+      .eq("uid", uid);
+    if (u.error) throw new Error(u.error.message);
 
-        <label style={{ display:"flex", alignItems:"center", gap:8 }}>
-          <input type="checkbox" checked={isPermanent} onChange={e => setIsPermanent(e.target.checked)} />
-          Permanent account (requires BVN)
-        </label>
+    const reference = `evb_${uid}_${Date.now()}`;
 
-        {isPermanent && (
-          <input placeholder="BVN (11 digits)" value={bvn} onChange={e => setBvn(e.target.value)} style={{ padding: 8 }} />
-        )}
+    // Build request body for Flutterwave
+    const body: Record<string, any> = {
+      email: email || "sandbox@example.com",
+      is_permanent: Boolean(isPermanent),
+      tx_ref: reference,
+    };
+    if (isPermanent) body.bvn = String(bvn);
 
-        <button onClick={createVA}>Create Virtual Account</button>
-      </div>
+    const resp = await fetch("https://api.flutterwave.com/v3/virtual-account-numbers", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${process.env.FLW_SECRET_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
 
-      {msg && <p style={{ color: "green" }}>{msg}</p>}
-      {err && <p style={{ color: "crimson" }}>{err}</p>}
-    </div>
-  );
+    const json = await resp.json();
+    if (!resp.ok) throw new Error(json?.message || JSON.stringify(json));
+
+    const data = json?.data || {};
+    const account_number = data.account_number || "0000000000";
+    const bank_name = data.bank_name || "Test Bank";
+    const account_reference = data.order_ref || reference;
+
+    const ins = await supabaseAdmin.from("virtual_account").insert({
+      uid,
+      account_number,
+      bank_name,
+      account_reference,
+      currency: "NGN",
+    });
+    if (ins.error) throw new Error(ins.error.message);
+
+    return NextResponse.json({
+      ok: true,
+      account_number,
+      bank_name,
+      is_permanent: Boolean(isPermanent),
+    });
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message || "error" }, { status: 400 });
+  }
 }
