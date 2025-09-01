@@ -28,7 +28,7 @@ export default function AdminPage() {
 
   return (
     <div>
-      <h1>Admin — Create Virtual Account</h1>
+      <h1>Admin - Create Virtual Account</h1>
       <p>Paste the user's <b>UID</b> and click create. This route is protected by a secret header.</p>
       <div style={{ display: "flex", gap: 8 }}>
         <input placeholder="User UID" value={uid} onChange={e => setUid(e.target.value)} style={{ flex: 1, padding: 8 }} />
