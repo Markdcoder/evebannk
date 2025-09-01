@@ -4,15 +4,24 @@ import { supabaseAdmin } from "@/lib/supabase";
 export async function POST(req: NextRequest) {
   try {
     const { uid, email, name } = await req.json();
-    if (!uid || !email) return NextResponse.json({ error: "uid and email required" }, { status: 400 });
+    if (!uid || !email) {
+      return NextResponse.json({ error: "uid and email required" }, { status: 400 });
+    }
 
     const { error } = await supabaseAdmin
       .from("app_user")
       .upsert({ uid, email, name }, { onConflict: "uid" });
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
     return NextResponse.json({ ok: true });
-  } catch (e:any) {
+  } catch (e: any) {
     return NextResponse.json({ error: e.message || "error" }, { status: 400 });
   }
+}
+
+export async function GET() {
+  // For sanity checks in the browser (GET is not allowed)
+  return NextResponse.json({ error: "Method Not Allowed" }, { status: 405 });
 }
