@@ -9,15 +9,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "No token" }, { status: 401 });
   }
 
-  // Get the current logged-in user from Supabase Auth
   const { data: { user }, error } = await supabaseAnon.auth.getUser(token);
-  if (error || !user) {
-    return NextResponse.json({ error: "Invalid token" }, { status: 401 });
-  }
+  if (error || !user) return NextResponse.json({ error: "Invalid token" }, { status: 401 });
 
   const uid = user.id;
 
-  // Fetch profile + accounts + balances from Supabase
   const [u, vaccts, bals] = await Promise.all([
     supabaseAdmin.from("app_user").select("*").eq("uid", uid).maybeSingle(),
     supabaseAdmin.from("virtual_account").select("*").eq("uid", uid).order("created_at", { ascending: false }),
