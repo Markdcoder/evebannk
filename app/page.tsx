@@ -5,6 +5,7 @@ import { createClient } from "@supabase/supabase-js";
 import { Auth } from "@supabase/auth-ui-react";
 import { ThemeSupa } from "@supabase/auth-ui-shared";
 
+// Public Supabase client for the browser
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -16,6 +17,7 @@ export default function HomePage() {
   const [me, setMe] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Load current session and listen for auth changes
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session);
@@ -24,26 +26,32 @@ export default function HomePage() {
     const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => {
       setSession(s);
     });
-    return () => { sub.subscription.unsubscribe(); };
+    return () => {
+      sub.subscription.unsubscribe();
+    };
   }, []);
 
+  // After login, bootstrap the user row and load dashboard data
   useEffect(() => {
     const bootstrap = async () => {
       if (!session) return;
       try {
         const user = session.user;
+
+        // 1) Ensure an app_user row exists for this uid (creates/updates)
         await fetch("/api/bootstrap", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             uid: user.id,
             email: user.email,
-            name: user.user_metadata?.name || null
-          })
+            name: user.user_metadata?.name || null,
+          }),
         });
 
+        // 2) Fetch dashboard data (profile, virtual accounts, balances)
         const r = await fetch("/api/me", {
-          headers: { Authorization: `Bearer ${session.access_token}` }
+          headers: { Authorization: `Bearer ${session.access_token}` },
         });
         const j = await r.json();
         if (!r.ok) throw new Error(j.error || "Failed to load profile");
@@ -57,6 +65,7 @@ export default function HomePage() {
 
   if (loading) return <p>Loading...</p>;
 
+  // Not signed in: show Supabase Auth UI
   if (!session) {
     return (
       <div>
@@ -67,6 +76,7 @@ export default function HomePage() {
     );
   }
 
+  // Signed in: show dashboard
   return (
     <div>
       <h1>EveBank Dashboard</h1>
@@ -90,11 +100,13 @@ export default function HomePage() {
               <ul>
                 {me.virtual_accounts.map((v: any) => (
                   <li key={v.id}>
-                    <b>{v.bank_name}</b> - <code>{v.account_number}</code> ({v.currency})
+                    <b>{v.bank_name}</b> — <code>{v.account_number}</code> ({v.currency})
                   </li>
                 ))}
               </ul>
-            ) : <p>No virtual account yet. Ask admin to create one.</p>}
+            ) : (
+              <p>No virtual account yet. Ask admin to create one.</p>
+            )}
           </section>
 
           <section style={{ padding: 12, border: "1px solid #eee", borderRadius: 12 }}>
@@ -102,18 +114,26 @@ export default function HomePage() {
             {me.balances?.length ? (
               <ul>
                 {me.balances.map((b: any) => (
-                  <li key={b.currency}><b>{b.currency}:</b> {b.amount}</li>
+                  <li key={b.currency}>
+                    <b>{b.currency}:</b> {b.amount}
+                  </li>
                 ))}
               </ul>
-            ) : <p>0.00</p>}
+            ) : (
+              <p>0.00</p>
+            )}
           </section>
 
           <section style={{ padding: 12, border: "1px solid #eee", borderRadius: 12 }}>
             <h3>Admin</h3>
-            <p>Open <a href="/admin" target="_blank">/admin</a> to approve KYC and create a Virtual Account for a user.</p>
+            <p>
+              Open <a href="/admin" target="_blank">/admin</a> to approve KYC and create a Virtual Account for a user.
+            </p>
           </section>
         </div>
-      ) : <p>Loading dashboard...</p>}
+      ) : (
+        <p>Loading dashboard...</p>
+      )}
     </div>
   );
 }
